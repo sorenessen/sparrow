@@ -9,14 +9,38 @@
   </head>
 
   <body>
-    <div id="splash">
-      <div class="splash-inner">
-        <div class="splash-mark">🕊️</div>
-        <div class="splash-title">Sparrow</div>
-        <div class="splash-sub">terminal, but opinionated</div>
-      </div>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="brand">
+          <div class="brand-mark">🕊️</div>
+          <div class="brand-text">
+            <div class="brand-title">Sparrow</div>
+            <div class="brand-sub">workspace runner</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Workspace</div>
+          <div id="workspaceName" class="kv">—</div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Tasks</div>
+          <div id="tasks"></div>
+        </div>
+
+        <div class="section grow"></div>
+
+        <div class="section">
+          <button id="btnClear" class="btn ghost">Clear</button>
+        </div>
+      </aside>
+
+      <main id="main">
+        <div id="terminal"></div>
+      </main>
     </div>
-    <div id="terminal"></div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
