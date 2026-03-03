@@ -18,7 +18,8 @@ const term = new Terminal({
   convertEol: true,
   fontSize: 15,
   lineHeight: 1.2,
-  fontFamily: 'Menlo, Monaco, "SF Mono", Consolas, "Liberation Mono", monospace',
+  fontFamily: 'MesloLGS NF, "JetBrainsMono Nerd Font", Menlo, Monaco, "SF Mono", monospace',
+  fontSize: 15,
   theme: {
     background: "#0b0d10",
     foreground: "#d7dde8",
