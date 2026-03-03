@@ -1,0 +1,35 @@
+[workspace]
+name = "my-project"
+root = "."
+
+[tools]
+# Optional for v0.1 enforcement; required for v0.1 reporting
+node = "20"
+python = "3.11"
+rust = "stable"
+go = "1.22"
+docker = true
+
+[env]
+# Non-secret values only in plain text
+APP_ENV = "development"
+
+[secrets]
+# Pointers only, not values
+# Examples: "keychain:NAME", "env:NAME", "file:PATH"
+OPENAI_API_KEY = "env:OPENAI_API_KEY"
+
+[tasks]
+up = [
+  "npm install"
+]
+build = [
+  "npm run build"
+]
+test = [
+  "npm test"
+]
+
+[services]
+# Optional; v0.1 can ignore or just print
+compose = "docker-compose.yml"

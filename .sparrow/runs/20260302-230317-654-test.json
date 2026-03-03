@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "workspace": {
+    "name": "my-project",
+    "root": ".",
+    "cwd": "/Users/sorenessen/Projects/sparrow",
+    "sparrow_toml": "/Users/sorenessen/Projects/sparrow/sparrow.toml"
+  },
+  "task": "test",
+  "commands": [
+    {
+      "index": 0,
+      "command": "npm test",
+      "duration_ms": 168,
+      "exit_code": 1,
+      "stdout_tail": [
+        "",
+        "> sparrow@1.0.0 test",
+        "> echo \"testing\" && exit 1",
+        "",
+        "testing"
+      ],
+      "stderr_tail": []
+    }
+  ],
+  "result": {
+    "ok": false,
+    "exit_code": 1
+  }
+}

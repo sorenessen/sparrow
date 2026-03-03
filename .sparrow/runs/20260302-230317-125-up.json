@@ -1,0 +1,29 @@
+{
+  "version": "0.1",
+  "workspace": {
+    "name": "my-project",
+    "root": ".",
+    "cwd": "/Users/sorenessen/Projects/sparrow",
+    "sparrow_toml": "/Users/sorenessen/Projects/sparrow/sparrow.toml"
+  },
+  "task": "up",
+  "commands": [
+    {
+      "index": 0,
+      "command": "npm install",
+      "duration_ms": 285,
+      "exit_code": 0,
+      "stdout_tail": [
+        "",
+        "up to date, audited 1 package in 173ms",
+        "",
+        "found 0 vulnerabilities"
+      ],
+      "stderr_tail": []
+    }
+  ],
+  "result": {
+    "ok": true,
+    "exit_code": 0
+  }
+}

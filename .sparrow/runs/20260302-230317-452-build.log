@@ -1,0 +1,6 @@
+$ npm run build
+
+> sparrow@1.0.0 build
+> echo "building"
+
+building

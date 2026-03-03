@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "workspace": {
+    "name": "my-project",
+    "root": ".",
+    "cwd": "/Users/sorenessen/Projects/sparrow",
+    "sparrow_toml": "/Users/sorenessen/Projects/sparrow/sparrow.toml"
+  },
+  "task": "build",
+  "commands": [
+    {
+      "index": 0,
+      "command": "npm run build",
+      "duration_ms": 193,
+      "exit_code": 0,
+      "stdout_tail": [
+        "",
+        "> sparrow@1.0.0 build",
+        "> echo \"building\"",
+        "",
+        "building"
+      ],
+      "stderr_tail": []
+    }
+  ],
+  "result": {
+    "ok": true,
+    "exit_code": 0
+  }
+}

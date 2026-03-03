@@ -1,0 +1,6 @@
+$ npm test
+
+> sparrow@1.0.0 test
+> echo "testing" && exit 1
+
+testing
