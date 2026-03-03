@@ -1,43 +1,53 @@
 use once_cell::sync::OnceCell;
-use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
+use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
+use serde::Serialize;
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Window};
-use serde::Serialize;
-use std::path::{Path, PathBuf};
 
 static PTY_WRITER: OnceCell<Arc<Mutex<Box<dyn Write + Send>>>> = OnceCell::new();
+static PTY_MASTER: OnceCell<Arc<Mutex<Box<dyn MasterPty + Send>>>> = OnceCell::new();
 
 #[tauri::command]
 fn spawn_shell(window: Window) -> Result<(), String> {
     let pty_system = NativePtySystem::default();
 
-    let pair = pty_system.openpty(PtySize {
-        rows: 24,
-        cols: 80,
-        pixel_width: 0,
-        pixel_height: 0,
-    }).map_err(|e| format!("{e}"))?;
+    // Create with a sensible default size; the frontend will call pty_resize() immediately.
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("{e}"))?;
 
-    let cmd = CommandBuilder::new("zsh");
+    let mut cmd = CommandBuilder::new("zsh");
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+    // Keep locale sane so prompts don’t glitch on unicode.
+    cmd.env("LANG", "en_US.UTF-8");
 
     let _child = pair
         .slave
         .spawn_command(cmd)
         .map_err(|e| format!("{e}"))?;
 
-    let mut reader = pair
-        .master
+    // Keep the MasterPty around for resize.
+    let mut master = pair.master;
+
+    let mut reader = master
         .try_clone_reader()
         .map_err(|e| format!("{e}"))?;
 
-    let writer = pair
-        .master
-        .take_writer()
-        .map_err(|e| format!("{e}"))?;
+    let writer = master.take_writer().map_err(|e| format!("{e}"))?;
 
     let writer = Arc::new(Mutex::new(writer));
     let _ = PTY_WRITER.set(writer.clone());
+
+    let master = Arc::new(Mutex::new(master));
+    let _ = PTY_MASTER.set(master.clone());
 
     std::thread::spawn(move || {
         let mut buffer = [0u8; 4096];
@@ -59,10 +69,34 @@ fn spawn_shell(window: Window) -> Result<(), String> {
 #[tauri::command]
 fn pty_write(data: String) -> Result<(), String> {
     if let Some(writer) = PTY_WRITER.get() {
-        let mut writer = writer.lock().unwrap();
-        writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+        let mut writer = writer.lock().map_err(|_| "PTY writer lock poisoned".to_string())?;
+        writer
+            .write_all(data.as_bytes())
+            .map_err(|e| e.to_string())?;
         let _ = writer.flush();
     }
+    Ok(())
+}
+
+#[tauri::command]
+fn pty_resize(cols: u16, rows: u16) -> Result<(), String> {
+    let master = PTY_MASTER
+        .get()
+        .ok_or_else(|| "PTY not started yet".to_string())?;
+
+    let mut master = master
+        .lock()
+        .map_err(|_| "PTY master lock poisoned".to_string())?;
+
+    master
+        .resize(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -148,7 +182,13 @@ fn run_task(task: String) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![spawn_shell, pty_write, get_workspace_status, run_task])
+        .invoke_handler(tauri::generate_handler![
+            spawn_shell,
+            pty_write,
+            pty_resize,
+            get_workspace_status,
+            run_task
+        ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
 }

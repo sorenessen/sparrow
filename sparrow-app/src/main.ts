@@ -16,10 +16,11 @@ if (!el) throw new Error("Missing #terminal");
 const term = new Terminal({
   cursorBlink: true,
   convertEol: true,
+  scrollback: 5000,
+  fontFamily:
+    '"JetBrainsMono Nerd Font", "MesloLGS NF", "SF Mono", Menlo, Monaco, Consolas, monospace',
   fontSize: 15,
   lineHeight: 1.2,
-  fontFamily: 'MesloLGS NF, "JetBrainsMono Nerd Font", Menlo, Monaco, "SF Mono", monospace',
-  fontSize: 15,
   theme: {
     background: "#0b0d10",
     foreground: "#d7dde8",
@@ -32,17 +33,58 @@ const fit = new FitAddon();
 term.loadAddon(fit);
 
 term.open(el);
-fit.fit();
-window.addEventListener("resize", () => fit.fit());
 term.focus();
 
+// --- PTY output -> terminal ---
 listen<string>("pty_output", (event) => {
   term.write(event.payload);
 });
 
+// --- terminal input -> PTY ---
 term.onData((data) => {
-  invoke("pty_write", { data });
+  // xterm sends "\r" for Enter, which is correct for a PTY.
+  invoke("pty_write", { data }).catch(console.error);
 });
+
+// --- size sync (this fixes the "missing chars" / weird prompt wrapping / quote oddities) ---
+let resizeTimer: number | null = null;
+
+async function syncPtySize() {
+  // Fit first so term.cols/rows are correct.
+  fit.fit();
+
+  const cols = term.cols;
+  const rows = term.rows;
+
+  // Backend resize (preferred, doesn’t pollute shell history)
+  try {
+    await invoke("pty_resize", { cols, rows });
+    return;
+  } catch {
+    // Back-compat fallback if pty_resize isn't wired yet.
+    // This is less ideal (it runs a command in the shell), but it fixes the behavior.
+    await invoke("pty_write", { data: `stty cols ${cols} rows ${rows}\n` });
+  }
+}
+
+function requestResizeSync() {
+  if (resizeTimer) window.clearTimeout(resizeTimer);
+  resizeTimer = window.setTimeout(() => {
+    void syncPtySize();
+  }, 75);
+}
+
+// Keep PTY sized to the actual pixel container.
+window.addEventListener("resize", requestResizeSync);
+new ResizeObserver(requestResizeSync).observe(el);
+
+// Fonts can load async; do an extra fit after they're ready.
+// This prevents the initial cols/rows from being wrong.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const fonts: any = (document as any).fonts;
+if (fonts?.ready) {
+  fonts.ready.then(() => requestResizeSync()).catch(() => {});
+}
 
 async function loadSidebar() {
   const ws = await invoke<WorkspaceStatus>("get_workspace_status");
@@ -53,29 +95,39 @@ async function loadSidebar() {
   if (!tasksEl) return;
 
   tasksEl.innerHTML = "";
-  ws.tasks.sort().forEach((t) => {
-    const row = document.createElement("div");
-    row.className = "task";
-    row.innerHTML = `
-      <div>
-        <div class="name">${t}</div>
-        <div class="hint">run</div>
-      </div>
-      <div class="hint">↵</div>
-    `;
-    row.addEventListener("click", async () => {
-      await invoke("run_task", { task: t });
-      term.focus();
+  ws.tasks
+    .slice()
+    .sort()
+    .forEach((t) => {
+      const row = document.createElement("div");
+      row.className = "task";
+      row.innerHTML = `
+        <div>
+          <div class="name">${t}</div>
+          <div class="hint">run</div>
+        </div>
+        <div class="hint">↵</div>
+      `;
+      row.addEventListener("click", async () => {
+        await invoke("run_task", { task: t });
+        term.focus();
+      });
+      tasksEl.appendChild(row);
     });
-    tasksEl.appendChild(row);
-  });
 
   const clearBtn = document.getElementById("btnClear");
   clearBtn?.addEventListener("click", () => {
     term.clear();
     term.focus();
   });
+
+  // Sidebar affects layout width; re-fit after it's populated.
+  requestResizeSync();
 }
 
-invoke("spawn_shell");
-loadSidebar();
+// Start shell, then immediately sync sizing.
+invoke("spawn_shell")
+  .then(() => requestResizeSync())
+  .catch(console.error);
+
+void loadSidebar();
