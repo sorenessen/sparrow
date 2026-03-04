@@ -1,6 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sparrow-app",
+  "productName": "Sparrow",
+  "mainBinaryName": "sparrow",
   "version": "0.1.0",
   "identifier": "com.sorenessen.sparrow",
   "build": {
@@ -10,12 +11,11 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "sparrow-app",
-        "width": 800,
-        "height": 600
+        "title": "Sparrow",
+        "width": 1100,
+        "height": 700
       }
     ],
     "security": {
