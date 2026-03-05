@@ -1,86 +1,136 @@
 
 # 🕊 Sparrow
 
-**Sparrow** is a desktop workspace runner built with **Tauri + Rust + TypeScript**.
+Sparrow is a desktop workspace runner built with **Tauri + Rust + TypeScript**.
 
-It combines a real system shell (PTY-backed) with an opinionated task sidebar powered by `sparrow.toml`.
+It combines a real PTY-backed system shell with a sidebar task runner powered by a `sparrow.toml` configuration file.
 
-Think: **terminal + task orchestrator + developer UX layer.**
+The goal is simple:
 
-Sparrow is designed to make running project tasks intentional instead of ad‑hoc.
+**Turn the commands you already run in a terminal into reproducible, one-click tasks.**
 
 ---
 
-# ✨ What Sparrow Is
+# Table of Contents
+
+1. Overview
+2. What Sparrow Is
+3. Architecture
+4. Project Structure
+5. Running Sparrow (Development)
+6. Using Sparrow
+7. sparrow.toml Configuration
+8. Current Task Format (Important)
+9. UI Features
+10. Implementation Notes
+11. Troubleshooting
+12. Roadmap
+13. Philosophy
+14. License
+
+---
+
+# Overview
+
+Sparrow provides:
+
+• a real interactive terminal  
+• a workspace-aware task runner  
+• a minimal UI for executing project workflows  
+
+Instead of remembering commands or switching between scripts, you encode them in `sparrow.toml` and execute them directly from Sparrow.
+
+---
+
+# What Sparrow Is
 
 Sparrow is:
 
-- A real terminal (PTY shell, not simulated)
-- A task runner driven by `sparrow.toml`
-- A desktop app (macOS, Windows, Linux via Tauri)
-- A bridge between structured workflows and raw shell power
+• a real terminal (PTY shell)  
+• a lightweight task runner  
+• a desktop developer utility  
+• a workflow orchestration layer
 
 Sparrow is **not**:
 
-- A replacement for your shell
-- A package manager
-- A heavy build system
+• a replacement for your shell  
+• a package manager  
+• a heavy build tool
 
-It is intentionally thin and lets your existing tools do the work.
+It is intentionally thin and sits on top of the tools you already use.
 
 ---
 
-# 🧠 Architecture
+# Architecture
 
-Sparrow has two main layers.
+Sparrow has two primary layers.
 
 ## Rust Backend (Tauri)
 
+The backend is responsible for interacting with the system shell.
+
 Responsibilities:
 
-- Spawn a real PTY shell (`zsh`, `bash`, etc)
-- Stream shell output to the UI
-- Accept keyboard input from the terminal
-- Parse `sparrow.toml`
-- Discover available tasks
-- Execute tasks by writing commands into the shell
+• Spawn a PTY (pseudo terminal)  
+• Launch the user's shell (`zsh`, `bash`, etc.)  
+• Stream terminal output to the frontend  
+• Accept keyboard input from the UI  
+• Parse `sparrow.toml`  
+• Discover available tasks  
+• Execute tasks by writing commands into the shell
 
-Key crates:
+Key Rust components:
 
-- `portable-pty`
-- `tauri`
-- `serde`
-- `toml`
+• `portable-pty` – PTY creation and management  
+• `tauri` – desktop application framework  
+• `serde` – serialization  
+• `toml` – configuration parsing  
+• `OnceCell` – persistent PTY writer storage
+
+Execution flow:
+
+1. Sparrow launches and spawns a PTY shell
+2. The backend searches upward for `sparrow.toml`
+3. Tasks are parsed from the TOML file
+4. Tasks are sent to the frontend
+5. Clicking a task writes commands into the shell
+6. Shell output streams back to the UI
+
+This design ensures Sparrow behaves exactly like a normal terminal session.
 
 ## TypeScript Frontend
 
+The frontend renders the terminal UI and sidebar.
+
 Built with:
 
-- Vite
-- xterm.js
-- FitAddon
+• Vite  
+• xterm.js  
+• xterm FitAddon
 
 Responsibilities:
 
-- Render the terminal
-- Resize the terminal correctly
-- Display the sidebar task list
-- Send commands to the backend
-- Stream shell output to the UI
+• Render a real terminal interface  
+• Display the task sidebar  
+• Send commands to the backend  
+• Receive shell output events  
+• Maintain terminal sizing
+
+Terminal resizing uses the FitAddon so the PTY dimensions stay synchronized with the UI.
 
 ---
 
-# 📁 Project Structure
+# Project Structure
 
 ```
 sparrow/
-├── sparrow.toml          # workspace configuration
+├── sparrow.toml
 ├── sparrow-app/
-│   ├── src/              # frontend
+│   ├── src/
 │   │   ├── main.ts
 │   │   └── styles.css
 │   │
-│   ├── src-tauri/        # rust backend
+│   ├── src-tauri/
 │   │   └── main.rs
 │   │
 │   ├── index.html
@@ -90,87 +140,16 @@ sparrow/
 
 ---
 
-# ⚙️ sparrow.toml
-
-Sparrow uses a `sparrow.toml` file to define workspace metadata and runnable tasks.
-
-Example (current supported format):
-
-```toml
-[workspace]
-name = "my-project"
-
-[tasks]
-up = ["npm install"]
-build = ["npm run build"]
-test = ["npm test"]
-```
-
-Each task is defined as an **array of shell commands**.
-
-Clicking a task writes each command sequentially into the live shell.
-
-Example execution:
-
-```
-npm install
-npm run build
-npm test
-```
-
----
-
-# ⚠️ Current Task Format (Important)
-
-The **current Sparrow engine expects tasks defined as arrays**.
-
-Correct:
-
-```toml
-[tasks]
-test = ["pytest -q"]
-```
-
-Not yet supported by the runner:
-
-```toml
-[tasks.test]
-desc = "Run tests"
-cmd = ["pytest -q"]
-```
-
-The structured format above is **planned for future releases**.
-
----
-
-# Example Workspace
-
-Example `sparrow.toml`:
-
-```toml
-[workspace]
-name = "CopyCat"
-
-[tasks]
-up = ["python3 -m pip install -r requirements.txt"]
-dev = ["uvicorn app:app --reload --port 8080"]
-test = ["pytest -q"]
-```
-
-When Sparrow launches it searches upward from the backend working directory until it finds a `sparrow.toml` file.
-
----
-
-# 🚀 Running Sparrow (Development)
+# Running Sparrow (Development)
 
 ## Prerequisites
 
 Install:
 
-- Node.js 18+
-- Rust (stable toolchain)
-- Cargo
-- Tauri CLI
+• Node.js 18+  
+• Rust (stable toolchain)  
+• Cargo  
+• Tauri CLI
 
 Install Tauri CLI:
 
@@ -191,31 +170,23 @@ npm install
 npm run tauri dev
 ```
 
-This will:
+This command:
 
-- start the Vite frontend
-- compile the Rust backend
-- launch the Sparrow desktop window
+1. launches the Vite frontend
+2. compiles the Rust backend
+3. opens the Sparrow desktop window
 
 ---
 
-# ⚠️ Important: dev vs tauri dev
+# Important: dev vs tauri dev
 
-Do **NOT** run:
+Do NOT run:
 
 ```
 npm run dev
 ```
 
-That command **only starts the Vite dev server**.
-
-It will show something like:
-
-```
-Local: http://localhost:1420/
-```
-
-but **no Sparrow window will open**.
+This only launches the Vite development server and **does not start the Sparrow application.**
 
 Always run:
 
@@ -225,77 +196,169 @@ npm run tauri dev
 
 ---
 
-# 🖥 Using Sparrow
+# Using Sparrow
 
 1. Launch Sparrow
-2. Sparrow locates `sparrow.toml`
-3. Sidebar loads workspace name and tasks
-4. Click a task to execute it
-5. Commands run inside the terminal
+2. Sparrow searches for `sparrow.toml`
+3. Workspace name appears in the sidebar
+4. Tasks populate the sidebar
+5. Click a task to run it
 
-You can still type commands manually.
+Tasks execute inside the live terminal session.
 
----
-
-# 🎨 UI Features
-
-Current UI includes:
-
-- Dark themed terminal
-- Sidebar task runner
-- Click‑to‑run commands
-- Clear terminal button
-- Resizable terminal (xterm + FitAddon)
-- Real PTY shell
+You can also type commands manually.
 
 ---
 
-# 🔐 Implementation Notes
+# sparrow.toml Configuration
+
+Example configuration:
+
+```
+[workspace]
+name = "my-project"
+
+[tasks]
+up = ["npm install"]
+build = ["npm run build"]
+test = ["npm test"]
+```
+
+Each task is defined as an **array of shell commands**.
+
+Commands execute sequentially inside the terminal.
+
+Example execution:
+
+```
+npm install
+npm run build
+npm test
+```
+
+---
+
+# Current Task Format (Important)
+
+The **current Sparrow runner only supports array-based task definitions.**
+
+Correct:
+
+```
+[tasks]
+test = ["pytest -q"]
+```
+
+Not yet supported by the current runner:
+
+```
+[tasks.test]
+desc = "Run tests"
+cmd = ["pytest -q"]
+```
+
+The structured format above is planned for future versions of Sparrow.
+
+---
+
+# UI Features
+
+The current Sparrow interface includes:
+
+• Embedded terminal (xterm.js)  
+• Sidebar task runner  
+• Click-to-run commands  
+• Clear terminal button  
+• Responsive terminal resizing  
+• Real PTY shell execution
+
+---
+
+# Implementation Notes
 
 Backend:
 
-- Uses `portable-pty` to spawn the shell
-- Uses `OnceCell` to store PTY writer state
-- Streams output using `tauri::Emitter`
-- Parses TOML using `toml` crate
+• PTY spawned with `portable-pty`  
+• PTY writer stored using `OnceCell`  
+• Shell output streamed via `tauri::Emitter`  
+• TOML parsed using `toml` crate
 
 Frontend:
 
-- Uses `xterm.js`
-- Uses `FitAddon` for responsive sizing
-- Streams PTY output via Tauri events
+• `xterm.js` terminal rendering  
+• `FitAddon` for terminal resizing  
+• events streamed via Tauri
 
 ---
 
-# 🛣 Roadmap
+# Troubleshooting
 
-Planned features:
+## Sparrow window does not open
 
-- structured task definitions (`desc`, `cwd`, `cmd`)
-- workspace selection UI
-- toolchain validation (`[tools]`)
-- environment config (`[env]`)
-- secret pointers (`[secrets]`)
-- service orchestration (`[services]`)
-- workspace history
-- multi‑workspace support
-- Sparrow CLI
+Most likely you ran the wrong command.
 
----
+Correct:
 
-# 🧩 Philosophy
+```
+npm run tauri dev
+```
 
-Sparrow does not try to replace the shell.
+Incorrect:
 
-Instead it provides **structure around the commands you already run**.
-
-Instead of remembering commands you encode them.
-
-Instead of switching tools you stay in one window.
+```
+npm run dev
+```
 
 ---
 
-# 📜 License
+## Tasks do not appear
+
+Sparrow could not find a `sparrow.toml` file.
+
+Ensure the file exists somewhere above the backend working directory.
+
+---
+
+## Task error: "not an array"
+
+Tasks must currently be arrays:
+
+Correct:
+
+```
+[tasks]
+test = ["pytest -q"]
+```
+
+---
+
+# Roadmap
+
+Planned improvements:
+
+• structured task definitions (`desc`, `cwd`, `cmd`)  
+• workspace selection UI  
+• toolchain validation (`[tools]`)  
+• environment configuration (`[env]`)  
+• secret references (`[secrets]`)  
+• service orchestration (`[services]`)  
+• workspace history  
+• multi-workspace support  
+• Sparrow CLI
+
+---
+
+# Philosophy
+
+Sparrow embraces the shell.
+
+Instead of replacing it, Sparrow gives structure to repetition.
+
+Commands you run frequently become tasks.  
+Tasks become reproducible workflows.
+
+---
+
+# License
 
 ISC
-
