@@ -184,21 +184,36 @@ fn run_task(task: String) -> Result<(), String> {
         }
     }
 
-    // Pull commands (string or array)
-    let cmds = match task_commands(&cfg, &task) {
-        Ok(c) => c,
+    let resolved = match task_commands(&cfg, &task) {
+        Ok(r) => r,
         Err(e) => {
-            // Make the failure visible in the terminal
             let _ = pty_write(format!("\r\n# sparrow error: {e}\r\n"));
             return Err(e);
         }
     };
 
     let _ = pty_write(format!("\r\n# sparrow run {task}\r\n"));
-    for cmd in cmds {
+
+    // If the task specifies cwd, cd into it relative to workspace root (already cd'd above)
+    if let Some(subdir) = resolved.cwd.as_deref() {
+        let safe = subdir.replace('"', "\\\"");
+        let _ = pty_write(format!("cd \"{}\"\n", safe));
+    }
+
+    for cmd in resolved.commands {
         let _ = pty_write(cmd);
         let _ = pty_write("\n".to_string());
     }
+
+    // Optional: reset back to workspace root after running a task with cwd
+    if resolved.cwd.is_some() {
+        if let Ok(lock) = workspace_root().lock() {
+            if let Some(root) = lock.as_ref() {
+                let _ = pty_write(format!("cd \"{}\"\n", root.to_string_lossy()));
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -224,7 +239,39 @@ fn set_workspace(path: String) -> Result<WorkspaceStatus, String> {
     get_workspace_status()
 }
 
-fn task_commands(cfg: &toml::Value, task: &str) -> Result<Vec<String>, String> {
+/* ------------------------- task parsing + argv support ------------------------- */
+
+#[derive(Debug)]
+struct ResolvedTask {
+    cwd: Option<String>,
+    commands: Vec<String>, // shell lines to run
+}
+
+fn shell_escape(s: &str) -> String {
+    if s.is_empty() {
+        return "''".to_string();
+    }
+    // If it's "simple", don't quote
+    let simple = s.chars().all(|c| c.is_ascii_alphanumeric() || "-._/:@".contains(c));
+    if simple {
+        return s.to_string();
+    }
+    // Single-quote escape: ' -> '\'' for POSIX shells
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn argv_to_shell(argv: &[toml::Value]) -> Result<String, String> {
+    let mut parts = Vec::new();
+    for v in argv {
+        let s = v
+            .as_str()
+            .ok_or_else(|| "cmd argv must be an array of strings".to_string())?;
+        parts.push(shell_escape(s));
+    }
+    Ok(parts.join(" "))
+}
+
+fn task_commands(cfg: &toml::Value, task: &str) -> Result<ResolvedTask, String> {
     let tasks = cfg
         .get("tasks")
         .ok_or_else(|| "Missing [tasks] in sparrow.toml".to_string())?;
@@ -233,60 +280,89 @@ fn task_commands(cfg: &toml::Value, task: &str) -> Result<Vec<String>, String> {
         .get(task)
         .ok_or_else(|| format!("Task not found: {task}"))?;
 
-    // 1) dev = "npm run dev"
+    // Allow simple legacy forms too:
+    // dev = "npm run dev"
     if let Some(s) = v.as_str() {
-        return Ok(vec![s.to_string()]);
+        return Ok(ResolvedTask {
+            cwd: None,
+            commands: vec![s.to_string()],
+        });
     }
 
-    // 2) dev = ["cmd1", "cmd2"]
+    // dev = ["cmd1", "cmd2"] (array of shell lines)
     if let Some(arr) = v.as_array() {
-        // Could be an array of strings OR array of {cmd=...}
         let mut out = Vec::new();
         for item in arr {
-            if let Some(s) = item.as_str() {
-                out.push(s.to_string());
-                continue;
-            }
-            if let Some(t) = item.as_table() {
-                if let Some(cmd) = t.get("cmd").and_then(|x| x.as_str()) {
-                    out.push(cmd.to_string());
-                    continue;
-                }
-                if let Some(run) = t.get("run").and_then(|x| x.as_str()) {
-                    out.push(run.to_string());
-                    continue;
-                }
-                return Err(format!(
-                    "Task '{task}' array item must be string or {{cmd=\"...\"}}"
-                ));
-            }
-            return Err(format!(
-                "Task '{task}' array item must be string or table"
-            ));
+            let s = item
+                .as_str()
+                .ok_or_else(|| format!("Task '{task}' array must contain only strings"))?;
+            out.push(s.to_string());
         }
-        return Ok(out);
+        return Ok(ResolvedTask {
+            cwd: None,
+            commands: out,
+        });
     }
 
-    // 3) dev = { cmd = "..." } OR dev = { cmds = ["...", "..."] }
+    // Table forms:
+    // [tasks.dev]
+    // desc = "..."
+    // cwd = "frontend" (optional)
+    // cmd = "uvicorn app:app ..." OR cmd = ["uvicorn","app:app","--reload"]
     if let Some(t) = v.as_table() {
-        if let Some(cmd) = t.get("cmd").and_then(|x| x.as_str()) {
-            return Ok(vec![cmd.to_string()]);
-        }
-        if let Some(run) = t.get("run").and_then(|x| x.as_str()) {
-            return Ok(vec![run.to_string()]);
-        }
-        if let Some(cmds) = t.get("cmds").and_then(|x| x.as_array()) {
-            let mut out = Vec::new();
-            for item in cmds {
-                let s = item
-                    .as_str()
-                    .ok_or_else(|| format!("Task '{task}'.cmds contains a non-string"))?;
-                out.push(s.to_string());
+        let cwd = t.get("cwd").and_then(|x| x.as_str()).map(|s| s.to_string());
+
+        // Primary key: cmd (string or argv array)
+        if let Some(cmdv) = t.get("cmd") {
+            if let Some(s) = cmdv.as_str() {
+                return Ok(ResolvedTask {
+                    cwd,
+                    commands: vec![s.to_string()],
+                });
             }
-            return Ok(out);
+            if let Some(argv) = cmdv.as_array() {
+                let line = argv_to_shell(argv)?;
+                return Ok(ResolvedTask {
+                    cwd,
+                    commands: vec![line],
+                });
+            }
+            return Err(format!("Task '{task}'.cmd must be a string or array of strings"));
         }
+
+        // Aliases (string only)
+        for key in ["run", "command", "script", "exec"] {
+            if let Some(s) = t.get(key).and_then(|x| x.as_str()) {
+                return Ok(ResolvedTask {
+                    cwd,
+                    commands: vec![s.to_string()],
+                });
+            }
+        }
+
+        // Multi-step arrays (optional): strings or argv arrays
+        for key in ["cmds", "commands", "steps", "scripts"] {
+            if let Some(arr) = t.get(key).and_then(|x| x.as_array()) {
+                let mut out = Vec::new();
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        out.push(s.to_string());
+                        continue;
+                    }
+                    if let Some(argv) = item.as_array() {
+                        out.push(argv_to_shell(argv)?);
+                        continue;
+                    }
+                    return Err(format!("Task '{task}' {key} items must be string or argv array"));
+                }
+                return Ok(ResolvedTask { cwd, commands: out });
+            }
+        }
+
+        let keys: Vec<String> = t.keys().cloned().collect();
         return Err(format!(
-            "Task '{task}' table must contain cmd=\"...\" or run=\"...\" or cmds=[...]"
+            "Task '{task}' table keys not recognized. Found keys: {}",
+            keys.join(", ")
         ));
     }
 
