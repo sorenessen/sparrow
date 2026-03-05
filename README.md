@@ -13,23 +13,24 @@ The goal is simple:
 
 # Table of Contents
 
-1. Overview
-2. What Sparrow Is
-3. Architecture
-4. Project Structure
-5. Running Sparrow (Development)
-6. Using Sparrow
-7. sparrow.toml Configuration
-8. Current Task Format (Important)
-9. UI Features
-10. Implementation Notes
-11. Troubleshooting
-12. Roadmap
-13. Philosophy
-14. License
+- [Overview](#overview)
+- [What Sparrow Is](#what-sparrow-is)
+- [Architecture](#architecture)
+- [Project Structure](#project-structure)
+- [Running Sparrow (Development)](#running-sparrow-development)
+- [Important: dev vs tauri dev](#important-dev-vs-tauri-dev)
+- [Using Sparrow](#using-sparrow)
+- [sparrow.toml Configuration](#sparrowtoml-configuration)
+- [Current Task Format (Important)](#current-task-format-important)
+- [UI Features](#ui-features)
+- [Implementation Notes](#implementation-notes)
+- [Troubleshooting](#troubleshooting)
+- [Roadmap](#roadmap)
+- [Philosophy](#philosophy)
+- [License](#license)
 
 ---
-
+<a id="overview"></a>
 # Overview
 
 Sparrow provides:
@@ -42,6 +43,7 @@ Instead of remembering commands or switching between scripts, you encode them in
 
 ---
 
+<a id="what-sparrow-is"></a>
 # What Sparrow Is
 
 Sparrow is:
@@ -61,6 +63,7 @@ It is intentionally thin and sits on top of the tools you already use.
 
 ---
 
+<a id="architecture"></a>
 # Architecture
 
 Sparrow has two primary layers.
@@ -120,6 +123,7 @@ Terminal resizing uses the FitAddon so the PTY dimensions stay synchronized with
 
 ---
 
+<a id="project-structure"></a>
 # Project Structure
 
 ```
@@ -140,6 +144,7 @@ sparrow/
 
 ---
 
+<a id="running-sparrow-development"></a>
 # Running Sparrow (Development)
 
 ## Prerequisites
@@ -178,6 +183,7 @@ This command:
 
 ---
 
+<a id="important-dev-vs-tauri-dev"></a>
 # Important: dev vs tauri dev
 
 Do NOT run:
@@ -196,6 +202,7 @@ npm run tauri dev
 
 ---
 
+<a id="using-sparrow"></a>
 # Using Sparrow
 
 1. Launch Sparrow
@@ -210,6 +217,7 @@ You can also type commands manually.
 
 ---
 
+<a id="sparrowtoml-configuration"></a>
 # sparrow.toml Configuration
 
 Example configuration:
@@ -238,6 +246,7 @@ npm test
 
 ---
 
+<a id="current-task-format-important"></a>
 # Current Task Format (Important)
 
 The **current Sparrow runner only supports array-based task definitions.**
@@ -261,6 +270,7 @@ The structured format above is planned for future versions of Sparrow.
 
 ---
 
+<a id="ui-features"></a>
 # UI Features
 
 The current Sparrow interface includes:
@@ -274,6 +284,7 @@ The current Sparrow interface includes:
 
 ---
 
+<a id="implementation-notes"></a>
 # Implementation Notes
 
 Backend:
@@ -291,6 +302,7 @@ Frontend:
 
 ---
 
+<a id="troubleshooting"></a>
 # Troubleshooting
 
 ## Sparrow window does not open
@@ -332,6 +344,7 @@ test = ["pytest -q"]
 
 ---
 
+<a id="roadmap"></a>
 # Roadmap
 
 Planned improvements:
@@ -348,6 +361,7 @@ Planned improvements:
 
 ---
 
+<a id="philosophy"></a>
 # Philosophy
 
 Sparrow embraces the shell.
@@ -359,6 +373,7 @@ Tasks become reproducible workflows.
 
 ---
 
+<a id="license"></a>
 # License
 
 ISC
