@@ -177,30 +177,28 @@ fn get_workspace_status() -> Result<WorkspaceStatus, String> {
 fn run_task(task: String) -> Result<(), String> {
     let cfg = load_sparrow_toml()?;
 
-    // If a workspace was selected, cd into it before running task commands
+    // cd into selected workspace root if set
     if let Ok(lock) = workspace_root().lock() {
         if let Some(root) = lock.as_ref() {
             pty_write(format!("cd \"{}\"\n", root.to_string_lossy()))?;
         }
     }
 
-    let cmds = cfg
-        .get("tasks")
-        .and_then(|t| t.get(&task))
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| format!("Task not found or not an array: {task}"))?;
+    // Pull commands (string or array)
+    let cmds = match task_commands(&cfg, &task) {
+        Ok(c) => c,
+        Err(e) => {
+            // Make the failure visible in the terminal
+            let _ = pty_write(format!("\r\n# sparrow error: {e}\r\n"));
+            return Err(e);
+        }
+    };
 
-    pty_write(format!("\r\n# sparrow run {task}\r\n"))?;
-
-    for c in cmds {
-        let cmd = c
-            .as_str()
-            .ok_or_else(|| format!("Task '{task}' contains a non-string command"))?;
-
-        pty_write(cmd.to_string())?;
-        pty_write("\n".to_string())?;
+    let _ = pty_write(format!("\r\n# sparrow run {task}\r\n"));
+    for cmd in cmds {
+        let _ = pty_write(cmd);
+        let _ = pty_write("\n".to_string());
     }
-
     Ok(())
 }
 
@@ -224,6 +222,77 @@ fn set_workspace(path: String) -> Result<WorkspaceStatus, String> {
         .map_err(|_| "Workspace lock poisoned".to_string())? = Some(root);
 
     get_workspace_status()
+}
+
+fn task_commands(cfg: &toml::Value, task: &str) -> Result<Vec<String>, String> {
+    let tasks = cfg
+        .get("tasks")
+        .ok_or_else(|| "Missing [tasks] in sparrow.toml".to_string())?;
+
+    let v = tasks
+        .get(task)
+        .ok_or_else(|| format!("Task not found: {task}"))?;
+
+    // 1) dev = "npm run dev"
+    if let Some(s) = v.as_str() {
+        return Ok(vec![s.to_string()]);
+    }
+
+    // 2) dev = ["cmd1", "cmd2"]
+    if let Some(arr) = v.as_array() {
+        // Could be an array of strings OR array of {cmd=...}
+        let mut out = Vec::new();
+        for item in arr {
+            if let Some(s) = item.as_str() {
+                out.push(s.to_string());
+                continue;
+            }
+            if let Some(t) = item.as_table() {
+                if let Some(cmd) = t.get("cmd").and_then(|x| x.as_str()) {
+                    out.push(cmd.to_string());
+                    continue;
+                }
+                if let Some(run) = t.get("run").and_then(|x| x.as_str()) {
+                    out.push(run.to_string());
+                    continue;
+                }
+                return Err(format!(
+                    "Task '{task}' array item must be string or {{cmd=\"...\"}}"
+                ));
+            }
+            return Err(format!(
+                "Task '{task}' array item must be string or table"
+            ));
+        }
+        return Ok(out);
+    }
+
+    // 3) dev = { cmd = "..." } OR dev = { cmds = ["...", "..."] }
+    if let Some(t) = v.as_table() {
+        if let Some(cmd) = t.get("cmd").and_then(|x| x.as_str()) {
+            return Ok(vec![cmd.to_string()]);
+        }
+        if let Some(run) = t.get("run").and_then(|x| x.as_str()) {
+            return Ok(vec![run.to_string()]);
+        }
+        if let Some(cmds) = t.get("cmds").and_then(|x| x.as_array()) {
+            let mut out = Vec::new();
+            for item in cmds {
+                let s = item
+                    .as_str()
+                    .ok_or_else(|| format!("Task '{task}'.cmds contains a non-string"))?;
+                out.push(s.to_string());
+            }
+            return Ok(out);
+        }
+        return Err(format!(
+            "Task '{task}' table must contain cmd=\"...\" or run=\"...\" or cmds=[...]"
+        ));
+    }
+
+    Err(format!(
+        "Task '{task}' must be a string, an array, or a table in sparrow.toml"
+    ))
 }
 
 fn main() {
