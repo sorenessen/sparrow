@@ -128,3 +128,17 @@ html, body {
   background: transparent;
   border-color: #1b2336;
 }
+
+.kv.input {
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: inherit;
+  padding: 10px 12px;
+  border-radius: 12px;
+  outline: none;
+}
+.kv.input:focus {
+  border-color: rgba(255,255,255,0.18);
+}

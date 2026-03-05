@@ -88,6 +88,15 @@ if (fonts?.ready) {
 
 async function loadSidebar() {
   const ws = await invoke<WorkspaceStatus>("get_workspace_status");
+  const pathInput = document.getElementById("workspacePath") as HTMLInputElement | null;
+  if (pathInput && ws.toml_path) {
+    // show the directory containing sparrow.toml if you want:
+    // pathInput.value = ws.toml_path.replace(/\/sparrow\.toml$/, "");
+    // but simplest: leave user-entered value as-is; status shows toml path
+  }
+
+const statusEl = document.getElementById("workspaceStatus");
+if (statusEl) statusEl.textContent = ws.toml_path;
   const nameEl = document.getElementById("workspaceName");
   if (nameEl) nameEl.textContent = ws.name;
 
@@ -131,3 +140,65 @@ invoke("spawn_shell")
   .catch(console.error);
 
 void loadSidebar();
+
+async function setWorkspace(path: string) {
+  const trimmed = path.trim();
+  if (!trimmed) return;
+
+  const statusEl = document.getElementById("workspaceStatus");
+  if (statusEl) statusEl.textContent = "Loading…";
+
+  try {
+    const ws = await invoke<WorkspaceStatus>("set_workspace", { path: trimmed });
+
+    // Refresh UI based on backend truth
+    const nameEl = document.getElementById("workspaceName");
+    if (nameEl) nameEl.textContent = ws.name;
+
+    if (statusEl) statusEl.textContent = ws.toml_path;
+
+    await loadSidebar();
+    term.focus();
+  } catch (e) {
+    if (statusEl) statusEl.textContent = String(e);
+    console.error(e);
+  }
+}
+
+function wireWorkspaceInput() {
+  const input = document.getElementById("workspacePath") as HTMLInputElement | null;
+  if (!input) return;
+
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      void setWorkspace(input.value);
+    }
+  });
+
+  // optional: on blur (click away), also apply
+  input.addEventListener("blur", () => {
+    void setWorkspace(input.value);
+  });
+}
+
+function wireWorkspaceControls() {
+  const pathEl = document.getElementById("workspacePath") as HTMLInputElement | null;
+  const browseBtn = document.getElementById("btnBrowseWorkspace");
+
+  pathEl?.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") void setWorkspace(pathEl.value);
+  });
+
+  browseBtn?.addEventListener("click", async () => {
+    // We'll add a backend command that opens a folder dialog and returns the chosen path
+    try {
+      const chosen = await invoke<string>("pick_workspace_folder");
+      if (chosen) await setWorkspace(chosen);
+    } catch (e) {
+      console.error(e);
+    }
+  });
+}
+
+wireWorkspaceControls();
+wireWorkspaceInput();

@@ -21,7 +21,18 @@
 
         <div class="section">
           <div class="section-title">Workspace</div>
-          <div id="workspaceName" class="kv">—</div>
+
+          <!-- editable absolute path -->
+          <input
+            id="workspacePath"
+            class="kv input"
+            type="text"
+            spellcheck="false"
+            placeholder="/absolute/path/to/project"
+          />
+
+          <!-- optional: shows toml path or error -->
+          <div id="workspaceStatus" class="hint"></div>
         </div>
 
         <div class="section">
@@ -41,6 +52,5 @@
       </main>
     </div>
 
-    <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

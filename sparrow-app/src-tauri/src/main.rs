@@ -9,6 +9,14 @@ use tauri::{Emitter, Window};
 static PTY_WRITER: OnceCell<Arc<Mutex<Box<dyn Write + Send>>>> = OnceCell::new();
 static PTY_MASTER: OnceCell<Arc<Mutex<Box<dyn MasterPty + Send>>>> = OnceCell::new();
 
+static WORKSPACE_ROOT: OnceCell<Arc<Mutex<Option<PathBuf>>>> = OnceCell::new();
+
+fn workspace_root() -> Arc<Mutex<Option<PathBuf>>> {
+    WORKSPACE_ROOT
+        .get_or_init(|| Arc::new(Mutex::new(None)))
+        .clone()
+}
+
 #[tauri::command]
 fn spawn_shell(window: Window) -> Result<(), String> {
     let pty_system = NativePtySystem::default();
@@ -108,8 +116,18 @@ struct WorkspaceStatus {
 }
 
 fn find_sparrow_toml() -> Result<PathBuf, String> {
-    // During dev, current_dir is usually .../sparrow-app/src-tauri
-    // So we search upwards until we find sparrow.toml
+    // 1) If user selected a workspace root, use it
+    if let Ok(lock) = workspace_root().lock() {
+        if let Some(root) = lock.as_ref() {
+            let candidate = root.join("sparrow.toml");
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+            return Err(format!("No sparrow.toml found in selected workspace: {}", root.display()));
+        }
+    }
+
+    // 2) Fallback: search upwards from current dir (dev convenience)
     let mut cur = std::env::current_dir().map_err(|e| e.to_string())?;
     loop {
         let candidate = cur.join("sparrow.toml");
@@ -120,6 +138,7 @@ fn find_sparrow_toml() -> Result<PathBuf, String> {
             break;
         }
     }
+
     Err("sparrow.toml not found (searched upwards from current dir)".into())
 }
 
@@ -158,13 +177,19 @@ fn get_workspace_status() -> Result<WorkspaceStatus, String> {
 fn run_task(task: String) -> Result<(), String> {
     let cfg = load_sparrow_toml()?;
 
+    // If a workspace was selected, cd into it before running task commands
+    if let Ok(lock) = workspace_root().lock() {
+        if let Some(root) = lock.as_ref() {
+            pty_write(format!("cd \"{}\"\n", root.to_string_lossy()))?;
+        }
+    }
+
     let cmds = cfg
         .get("tasks")
         .and_then(|t| t.get(&task))
         .and_then(|v| v.as_array())
         .ok_or_else(|| format!("Task not found or not an array: {task}"))?;
 
-    // write a nice header into the terminal
     pty_write(format!("\r\n# sparrow run {task}\r\n"))?;
 
     for c in cmds {
@@ -172,12 +197,33 @@ fn run_task(task: String) -> Result<(), String> {
             .as_str()
             .ok_or_else(|| format!("Task '{task}' contains a non-string command"))?;
 
-        // Send command + newline to the shell
         pty_write(cmd.to_string())?;
         pty_write("\n".to_string())?;
     }
 
     Ok(())
+}
+
+#[tauri::command]
+fn set_workspace(path: String) -> Result<WorkspaceStatus, String> {
+    let root = PathBuf::from(path);
+    if !root.exists() {
+        return Err("Workspace path does not exist".into());
+    }
+    if !root.is_dir() {
+        return Err("Workspace path is not a directory".into());
+    }
+
+    let toml_path = root.join("sparrow.toml");
+    if !toml_path.exists() {
+        return Err("No sparrow.toml in that directory".into());
+    }
+
+    *workspace_root()
+        .lock()
+        .map_err(|_| "Workspace lock poisoned".to_string())? = Some(root);
+
+    get_workspace_status()
 }
 
 fn main() {
@@ -187,7 +233,8 @@ fn main() {
             pty_write,
             pty_resize,
             get_workspace_status,
-            run_task
+            run_task,
+            set_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");
