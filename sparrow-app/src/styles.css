@@ -142,3 +142,10 @@ html, body {
 .kv.input:focus {
   border-color: rgba(255,255,255,0.18);
 }
+
+.brand-mark img.logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  display: block;
+}

@@ -136,7 +136,12 @@ if (statusEl) statusEl.textContent = ws.toml_path;
 
 // Start shell, then immediately sync sizing.
 invoke("spawn_shell")
-  .then(() => requestResizeSync())
+  .then(async () => {
+    await requestResizeSync();
+
+    // 🔥 THIS LINE BRINGS YOUR MENU BACK
+    await invoke("pty_write", { data: "pillar\n" });
+  })
   .catch(console.error);
 
 void loadSidebar();
