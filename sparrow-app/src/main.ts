@@ -140,7 +140,7 @@ invoke("spawn_shell")
     await requestResizeSync();
 
     // 🔥 THIS LINE BRINGS YOUR MENU BACK
-    await invoke("pty_write", { data: "pillar\n" });
+    await invoke("pty_write", { data: "pilar\n" });
   })
   .catch(console.error);
 
