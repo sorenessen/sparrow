@@ -32,9 +32,10 @@ fn spawn_shell(window: Window) -> Result<(), String> {
         .map_err(|e| format!("{e}"))?;
 
     let mut cmd = CommandBuilder::new("zsh");
+    cmd.arg("-ic");
+    cmd.arg("source /Users/sorenessen/Projects/sparrow/sparrow-app/src-tauri/resources/pilar.zsh && pilar; exec zsh -i");
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    // Keep locale sane so prompts don’t glitch on unicode.
     cmd.env("LANG", "en_US.UTF-8");
 
     let _child = pair
@@ -70,6 +71,8 @@ fn spawn_shell(window: Window) -> Result<(), String> {
             }
         }
     });
+
+    // pty_write("source ./resources/pilar.zsh\npilar\n".to_string())?;
 
     Ok(())
 }

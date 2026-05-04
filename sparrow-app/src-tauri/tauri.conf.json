@@ -23,6 +23,7 @@
     }
   },
   "bundle": {
+    "resources": ["resources/pilar.zsh"],
     "active": true,
     "targets": "all",
     "icon": [
