@@ -184,6 +184,23 @@ This command:
 2. compiles the Rust backend
 3. opens the Sparrow desktop window
 
+### Launch Steps
+<img width="1100" height="709" alt="Screenshot 2026-06-14 at 6 01 45 PM" src="https://github.com/user-attachments/assets/96ff2a2e-c440-4624-90c2-b7551f6bf282" />
+
+#### Click or type selection for work group
+<img width="1104" height="708" alt="Screenshot 2026-06-14 at 6 03 31 PM" src="https://github.com/user-attachments/assets/42b0ee80-4a8d-457f-8af7-1cc53108b432" />
+
+#### Select project
+<img width="1103" height="703" alt="Screenshot 2026-06-14 at 6 03 43 PM" src="https://github.com/user-attachments/assets/0ebd38fd-3af8-4d80-bf90-e3a9989df488" />
+<img width="1104" height="703" alt="Screenshot 2026-06-14 at 6 04 35 PM" src="https://github.com/user-attachments/assets/ace60a0d-2cd2-44a0-aa61-4b54eeb52ba5" />
+
+#### If configured, choose editor or select 'No' to enter command line
+<img width="1102" height="703" alt="Screenshot 2026-06-14 at 6 05 06 PM" src="https://github.com/user-attachments/assets/a5974dc8-70ae-48aa-a7f0-2d6221f4a172" />
+
+#### Paste the path to app home directory to the left. Configured tasks appear to the left
+<img width="1101" height="699" alt="Screenshot 2026-06-14 at 6 06 39 PM" src="https://github.com/user-attachments/assets/790565c1-e622-42a8-a159-222dfbeed9b0" />
+
+
 ---
 
 <a id="important-dev-vs-tauri-dev"></a>
