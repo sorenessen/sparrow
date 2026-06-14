@@ -397,3 +397,7 @@ Tasks become reproducible workflows.
 # License
 
 ISC
+
+## Maintainer
+Soren Essen
+Principal Engineer & Product Architect, Calypso Labs
