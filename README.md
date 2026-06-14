@@ -1,5 +1,5 @@
 
-# Sparrow
+# Sparrow Workbench
 
 <img width="214" height="214" alt="sparrow-icon-1024-BtwIhqfI" src="https://github.com/user-attachments/assets/a8c149a6-2427-450c-a281-81e6d530f999" />
 
