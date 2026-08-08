@@ -124,14 +124,6 @@ if (statusEl) statusEl.textContent = ws.toml_path;
       tasksEl.appendChild(row);
     });
 
-  const clearBtn = document.getElementById("btnClear");
-
-  clearBtn?.addEventListener("click", () => {
-    term.clear();
-    term.write("\x1b[2J\x1b[H");
-    term.focus();
-  });
-
   // Sidebar affects layout width; re-fit after it's populated.
   requestResizeSync();
 }
@@ -219,6 +211,17 @@ function wireWorkspaceControls() {
     } catch (e) {
       console.error(e);
     }
+  });
+}
+
+function wireTerminalControls() {
+  const clearBtn =
+    document.getElementById("btnClear");
+
+  clearBtn?.addEventListener("click", () => {
+    term.clear();
+    term.write("\x1b[2J\x1b[H");
+    term.focus();
   });
 }
 
@@ -312,3 +315,4 @@ wireWorkspaceControls();
 wireWorkspaceInput();
 wirePilarControls();
 wirePilarNavigation();
+wireTerminalControls();
