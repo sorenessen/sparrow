@@ -139,6 +139,7 @@ html, body {
   border-radius: 12px;
   outline: none;
 }
+
 .kv.input:focus {
   border-color: rgba(255,255,255,0.18);
 }
@@ -148,4 +149,22 @@ html, body {
   height: 40px;
   object-fit: contain;
   display: block;
+}
+
+.workspace-section,
+.pilar-section,
+.tasks-section {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #1b2336;
+}
+
+.pilar-section,
+.tasks-section {
+  margin-top: 16px;
+}
+
+.sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
