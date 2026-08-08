@@ -11,9 +11,7 @@ if [[ -z "${pilar_MENU_SHOWN:-}" ]]; then
   PROJECTS_DIR="$HOME/Projects"
   PERSONAL_ANDROID_DIR="$HOME/AndroidStudioProjects"
 
-  CATE_DIR="$PROJECTS_DIR/cate"
-  COPYCAT_DIR="$PROJECTS_DIR/AI_Scanner"      # change to AI_Scanner if needed
-  GHOSTLINE_DIR="$PROJECTS_DIR/ghostline"
+  PILAR_PROJECTS_FILE="$HOME/.config/sparrow/pilar-projects.tsv"
 
   RAP_DIR="$HOME/RobotsAndPencils"
   RAP_ANDROID_DIR="$RAP_DIR/AndroidStudioProjects"
@@ -201,30 +199,74 @@ if [[ -z "${pilar_MENU_SHOWN:-}" ]]; then
 
       3)
         local sub_choice=""
+        local -a calypso_names
+        local -a calypso_paths
+        local -a calypso_options
+
+        # Existing projects remain available.
+        calypso_names=()
+        calypso_paths=()
+
+        # Add projects saved through Sparrow.
+        if [[ -f "$PILAR_PROJECTS_FILE" ]]; then
+          local saved_group=""
+          local saved_name=""
+          local saved_path=""
+
+          while IFS=$'\t' read -r saved_group saved_name saved_path; do
+            [[ "$saved_group" == "Calypso Projects" ]] || continue
+            [[ -n "$saved_name" && -n "$saved_path" ]] || continue
+
+            # Don't add the same path twice.
+            local already_exists=0
+            local existing_path
+
+            for existing_path in "${calypso_paths[@]}"; do
+              if [[ "$existing_path" == "$saved_path" ]]; then
+                already_exists=1
+                break
+              fi
+            done
+
+            if (( ! already_exists )); then
+              calypso_names+=("$saved_name")
+              calypso_paths+=("$saved_path")
+            fi
+          done < "$PILAR_PROJECTS_FILE"
+        fi
+
+        # Build the numbered menu.
+        local i
+        for (( i = 1; i <= ${#calypso_names[@]}; i++ )); do
+          calypso_options+=(
+            "$i) ${calypso_names[$i]} (${calypso_paths[$i]})"
+          )
+        done
+
         if _exists fzf; then
-          sub_choice="$(printf "%s\n" \
-            "1) cate ($CATE_DIR)" \
-            "2) copycat ($COPYCAT_DIR)" \
-            "3) ghostline ($GHOSTLINE_DIR)" \
-            | _pick_with_fzf_or_fallback "Calypso>")"
+          sub_choice="$(
+            printf "%s\n" "${calypso_options[@]}" |
+              _pick_with_fzf_or_fallback "Calypso>"
+          )"
+
           sub_choice="${sub_choice%%)*}"
         else
           echo ""
           echo "Calypso Projects:"
-          echo "  1) cate ($CATE_DIR)"
-          echo "  2) copycat ($COPYCAT_DIR)"
-          echo "  3) ghostline ($GHOSTLINE_DIR)"
+
+          printf "  %s\n" "${calypso_options[@]}"
+
           echo ""
-          read "sub_choice?Choose [1-3] (Enter = 1): "
+          read "sub_choice?Choose [1-${#calypso_names[@]}] (Enter = 1): "
           sub_choice="${sub_choice:-1}"
         fi
 
-        case "$sub_choice" in
-          1) _cd_or_warn "$CATE_DIR" && _after_cd ;;
-          2) _cd_or_warn "$COPYCAT_DIR" && _after_cd ;;
-          3) _cd_or_warn "$GHOSTLINE_DIR" && _after_cd ;;
-          *) _cd_or_warn "$CATE_DIR" && _after_cd ;;
-        esac
+        if [[ "$sub_choice" == <-> ]] &&
+           (( sub_choice >= 1 && sub_choice <= ${#calypso_paths[@]} )); then
+          _cd_or_warn "${calypso_paths[$sub_choice]}" && _after_cd
+        else
+          _cd_or_warn "$CATE_DIR" && _after_cd
+        fi
         ;;
 
       4)

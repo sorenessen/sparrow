@@ -1,6 +1,6 @@
 use once_cell::sync::OnceCell;
 use portable_pty::{CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -118,6 +118,132 @@ struct WorkspaceStatus {
     toml_path: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PilarProject {
+    name: String,
+    path: String,
+    group: String,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct PilarConfig {
+    projects: Vec<PilarProject>,
+}
+
+fn pilar_config_path() -> Result<PathBuf, String> {
+    let home =
+        std::env::var("HOME")
+            .map_err(|_| "HOME environment variable not found".to_string())?;
+
+    Ok(PathBuf::from(home)
+        .join(".config")
+        .join("sparrow")
+        .join("pilar.toml"))
+}
+
+fn load_pilar_config() -> Result<PilarConfig, String> {
+    let path = pilar_config_path()?;
+
+    if !path.exists() {
+        return Ok(PilarConfig::default());
+    }
+
+    let text =
+        std::fs::read_to_string(&path)
+            .map_err(|e| e.to_string())?;
+
+    toml::from_str(&text)
+        .map_err(|e| e.to_string())
+}
+
+fn save_pilar_config(
+    config: &PilarConfig)
+    -> Result<(), String>
+{
+    let path = pilar_config_path()?;
+
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| e.to_string())?;
+    }
+
+    let text =
+        toml::to_string_pretty(config)
+            .map_err(|e| e.to_string())?;
+
+    std::fs::write(&path, text)
+        .map_err(|e| e.to_string())?;
+
+    save_pilar_shell_config(config)?;
+
+    Ok(())
+}
+
+fn save_pilar_shell_config(
+    config: &PilarConfig)
+    -> Result<(), String>
+{
+    let home =
+        std::env::var("HOME")
+            .map_err(|_| "HOME environment variable not found".to_string())?;
+
+    let path = PathBuf::from(home)
+        .join(".config")
+        .join("sparrow")
+        .join("pilar-projects.tsv");
+
+    let mut output = String::new();
+
+    for project in &config.projects {
+        output.push_str(&format!(
+            "{}\t{}\t{}\n",
+            project.group,
+            project.name,
+            project.path
+        ));
+    }
+
+    std::fs::write(path, output)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn add_pilar_project(
+    name: String,
+    path: String,
+    group: String)
+    -> Result<(), String>
+{
+    let mut config = load_pilar_config()?;
+
+    config.projects.retain(|project| {
+        project.path != path
+    });
+
+    config.projects.push(
+        PilarProject {
+            name,
+            path,
+            group,
+        });
+
+    save_pilar_config(&config)
+}
+
+#[tauri::command]
+fn remove_pilar_project(
+    path: String)
+    -> Result<(), String>
+{
+    let mut config = load_pilar_config()?;
+
+    config.projects.retain(|project| {
+        project.path != path
+    });
+
+    save_pilar_config(&config)
+}
+
 fn find_sparrow_toml() -> Result<PathBuf, String> {
     // 1) If user selected a workspace root, use it
     if let Ok(lock) = workspace_root().lock() {
@@ -223,21 +349,35 @@ fn run_task(task: String) -> Result<(), String> {
 #[tauri::command]
 fn set_workspace(path: String) -> Result<WorkspaceStatus, String> {
     let root = PathBuf::from(path);
+
     if !root.exists() {
         return Err("Workspace path does not exist".into());
     }
+
     if !root.is_dir() {
         return Err("Workspace path is not a directory".into());
     }
 
-    let toml_path = root.join("sparrow.toml");
-    if !toml_path.exists() {
-        return Err("No sparrow.toml in that directory".into());
-    }
-
     *workspace_root()
         .lock()
-        .map_err(|_| "Workspace lock poisoned".to_string())? = Some(root);
+        .map_err(|_| "Workspace lock poisoned".to_string())? =
+        Some(root.clone());
+
+    let toml_path = root.join("sparrow.toml");
+
+    if !toml_path.exists() {
+        let name = root
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("workspace")
+            .to_string();
+
+        return Ok(WorkspaceStatus {
+            name,
+            tasks: Vec::new(),
+            toml_path: "No sparrow.toml".to_string(),
+        });
+    }
 
     get_workspace_status()
 }
@@ -382,7 +522,10 @@ fn main() {
             pty_resize,
             get_workspace_status,
             run_task,
-            set_workspace
+            set_workspace,
+            add_pilar_project,
+            remove_pilar_project
+
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

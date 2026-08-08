@@ -125,8 +125,10 @@ if (statusEl) statusEl.textContent = ws.toml_path;
     });
 
   const clearBtn = document.getElementById("btnClear");
+
   clearBtn?.addEventListener("click", () => {
     term.clear();
+    term.write("\x1b[2J\x1b[H");
     term.focus();
   });
 
@@ -154,18 +156,33 @@ async function setWorkspace(path: string) {
   if (statusEl) statusEl.textContent = "Loading…";
 
   try {
-    const ws = await invoke<WorkspaceStatus>("set_workspace", { path: trimmed });
+    const ws = await invoke<WorkspaceStatus>("set_workspace", {
+      path: trimmed,
+    });
 
-    // Refresh UI based on backend truth
     const nameEl = document.getElementById("workspaceName");
-    if (nameEl) nameEl.textContent = ws.name;
+    if (nameEl) {
+      nameEl.textContent = ws.name;
+    }
 
-    if (statusEl) statusEl.textContent = ws.toml_path;
+    if (statusEl) {
+      statusEl.textContent = ws.toml_path;
+    }
+
+    const pilarStatusEl =
+      document.getElementById("pilarStatus");
+
+    if (pilarStatusEl) {
+      pilarStatusEl.textContent = "";
+    }
 
     await loadSidebar();
     term.focus();
   } catch (e) {
-    if (statusEl) statusEl.textContent = String(e);
+    if (statusEl) {
+      statusEl.textContent = String(e);
+    }
+
     console.error(e);
   }
 }
@@ -205,5 +222,93 @@ function wireWorkspaceControls() {
   });
 }
 
+function wirePilarControls() {
+  const pathEl =
+    document.getElementById("workspacePath") as HTMLInputElement | null;
+
+  const addBtn =
+    document.getElementById("btnAddToPilar");
+
+  const removeBtn =
+    document.getElementById("btnRemoveFromPilar");
+
+  addBtn?.addEventListener("click", async () => {
+    const path = pathEl?.value.trim();
+
+    if (!path) {
+      return;
+    }
+
+    const name =
+      path.split("/").filter(Boolean).pop() ?? "workspace";
+
+    const groupEl =
+      document.getElementById("pilarGroup") as HTMLSelectElement | null;
+
+    const group =
+      groupEl?.value || "Calypso Projects";
+
+    await invoke("add_pilar_project", {
+      name,
+      path,
+      group,
+    });
+
+    showPilarStatus(`Added to ${group}`);
+
+  });
+
+  removeBtn?.addEventListener("click", async () => {
+    const path = pathEl?.value.trim();
+
+    if (!path) {
+      return;
+    }
+
+    await invoke("remove_pilar_project", {
+      path,
+    });
+
+    showPilarStatus("Removed from Pilar");
+  });
+}
+
+let pilarStatusTimer: number | null = null;
+
+function showPilarStatus(message: string) {
+  const statusEl =
+    document.getElementById("pilarStatus");
+
+  if (!statusEl) {
+    return;
+  }
+
+  statusEl.textContent = message;
+
+  if (pilarStatusTimer !== null) {
+    window.clearTimeout(pilarStatusTimer);
+  }
+
+  pilarStatusTimer = window.setTimeout(() => {
+    statusEl.textContent = "";
+    pilarStatusTimer = null;
+  }, 2500);
+}
+
+function wirePilarNavigation() {
+  const button =
+    document.getElementById("btnPilar");
+
+  button?.addEventListener("click", async () => {
+    await invoke("pty_write", {
+      data: "pilar\n",
+    });
+
+    term.focus();
+  });
+}
+
 wireWorkspaceControls();
 wireWorkspaceInput();
+wirePilarControls();
+wirePilarNavigation();

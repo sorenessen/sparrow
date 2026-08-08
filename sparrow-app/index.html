@@ -33,6 +33,21 @@
             placeholder="/absolute/path/to/project"
           />
 
+          <div id="workspaceStatus" class="hint"></div>
+
+          <select id="pilarGroup" class="kv input">
+            <option value="Personal Projects">Personal Projects</option>
+            <option value="Calypso Projects" selected>Calypso Projects</option>
+            <option value="Robots & Pencils Projects">Robots & Pencils Projects</option>
+          </select>
+
+          <div class="workspace-actions">
+            <button id="btnAddToPilar" class="btn">Add to Pilar</button>
+            <button id="btnRemoveFromPilar" class="btn">Remove from Pilar</button>
+          </div>
+
+          <div id="pilarStatus" class="hint"></div>
+
         </div>
 
         <div class="section">
@@ -43,7 +58,11 @@
         <div class="section grow"></div>
 
         <div class="section">
-          <button id="btnClear" class="btn ghost">Clear</button>
+          <button id="btnPilar" class="btn">← Back to Pilar</button>
+        </div>
+
+        <div class="section">
+          <button id="btnClear" class="btn">Clear Terminal</button>
         </div>
       </aside>
 
