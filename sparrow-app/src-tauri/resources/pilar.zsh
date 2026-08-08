@@ -125,10 +125,19 @@ if [[ -z "${pilar_MENU_SHOWN:-}" ]]; then
 
 
   _after_cd() {
+    _update_sparrow_current_project
+
     _git_hint
     _auto_activate_venv
     _open_editor_menu
   }
+
+  _update_sparrow_current_project() {
+    mkdir -p "$HOME/.config/sparrow"
+    pwd > "$HOME/.config/sparrow/current-project"
+  }
+
+  add-zsh-hook chpwd _update_sparrow_current_project
 
   _pick_with_fzf_or_fallback() {
     # args: prompt, newline-separated options on stdin
@@ -138,6 +147,102 @@ if [[ -z "${pilar_MENU_SHOWN:-}" ]]; then
     else
       # no fzf: just echo back (caller will do numbered menu)
       cat
+    fi
+  }
+
+  _open_pilar_project_group() {
+    local group_name="$1"
+    local prompt_name="$2"
+
+    local sub_choice=""
+    local -a project_names
+    local -a project_paths
+    local -a project_options
+
+    project_names=()
+    project_paths=()
+    project_options=()
+
+    if [[ -f "$PILAR_PROJECTS_FILE" ]]; then
+      local saved_group=""
+      local saved_name=""
+      local saved_path=""
+
+      while IFS=$'\t' read -r saved_group saved_name saved_path; do
+        [[ "$saved_group" == "$group_name" ]] || continue
+        [[ -n "$saved_name" && -n "$saved_path" ]] || continue
+
+        local already_exists=0
+        local existing_path
+
+        for existing_path in "${project_paths[@]}"; do
+          if [[ "$existing_path" == "$saved_path" ]]; then
+            already_exists=1
+            break
+          fi
+        done
+
+        if (( ! already_exists )); then
+          project_names+=("$saved_name")
+          project_paths+=("$saved_path")
+        fi
+      done < "$PILAR_PROJECTS_FILE"
+    fi
+
+    if (( ${#project_names[@]} == 0 )); then
+      echo ""
+      echo "No projects saved in $group_name."
+      echo ""
+      return 0
+    fi
+
+    local i
+    local marker=""
+
+    for (( i = 1; i <= ${#project_names[@]}; i++ )); do
+      local project_name="${project_names[$i]}"
+      local project_path="${project_paths[$i]}"
+      local marker="🪹"
+
+      if [[ -f "$project_path/sparrow.toml" ]]; then
+        marker="🪺"
+      fi
+
+      project_options+=(
+        "$i|$marker   $project_name ($project_path)"
+      )
+    done
+
+    if _exists fzf; then
+      sub_choice="$(
+        printf "%s\n" "${project_options[@]}" |
+          fzf \
+            --prompt="$prompt_name> " \
+            --height=12 \
+            --border \
+            --reverse \
+            --delimiter='|' \
+            --with-nth=2 \
+            --color='bg+:-1,fg+:-1,hl+:bold'
+      )"
+
+      [[ -z "$sub_choice" ]] && return 0
+
+      sub_choice="${sub_choice%%|*}"
+  
+    else
+      echo ""
+      echo "$group_name:"
+
+      printf "  %s\n" "${project_options[@]}"
+
+      echo ""
+      read "sub_choice?Choose [1-${#project_names[@]}]: "
+    fi
+
+    if [[ "$sub_choice" == <-> ]] &&
+       (( sub_choice >= 1 && sub_choice <= ${#project_paths[@]} )); then
+      _cd_or_warn "${project_paths[$sub_choice]}" && _after_cd
     fi
   }
 
@@ -173,129 +278,21 @@ if [[ -z "${pilar_MENU_SHOWN:-}" ]]; then
         ;;
 
       2)
-        local sub_choice=""
-        if _exists fzf; then
-          sub_choice="$(printf "%s\n" \
-            "1) Projects root ($PROJECTS_DIR)" \
-            "2) AndroidProjects ($PERSONAL_ANDROID_DIR)" \
-            | _pick_with_fzf_or_fallback "Personal>")"
-          sub_choice="${sub_choice%%)*}"
-        else
-          echo ""
-          echo "Personal Projects:"
-          echo "  1) Projects root ($PROJECTS_DIR)"
-          echo "  2) AndroidProjects ($PERSONAL_ANDROID_DIR)"
-          echo ""
-          read "sub_choice?Choose [1-2] (Enter = 1): "
-          sub_choice="${sub_choice:-1}"
-        fi
-
-        case "$sub_choice" in
-          1) _cd_or_warn "$PROJECTS_DIR" && _after_cd ;;
-          2) _cd_or_warn "$PERSONAL_ANDROID_DIR" && _after_cd ;;
-          *) _cd_or_warn "$PROJECTS_DIR" && _after_cd ;;
-        esac
+        _open_pilar_project_group \
+          "Personal Projects" \
+          "Personal"
         ;;
 
       3)
-        local sub_choice=""
-        local -a calypso_names
-        local -a calypso_paths
-        local -a calypso_options
-
-        # Existing projects remain available.
-        calypso_names=()
-        calypso_paths=()
-
-        # Add projects saved through Sparrow.
-        if [[ -f "$PILAR_PROJECTS_FILE" ]]; then
-          local saved_group=""
-          local saved_name=""
-          local saved_path=""
-
-          while IFS=$'\t' read -r saved_group saved_name saved_path; do
-            [[ "$saved_group" == "Calypso Projects" ]] || continue
-            [[ -n "$saved_name" && -n "$saved_path" ]] || continue
-
-            # Don't add the same path twice.
-            local already_exists=0
-            local existing_path
-
-            for existing_path in "${calypso_paths[@]}"; do
-              if [[ "$existing_path" == "$saved_path" ]]; then
-                already_exists=1
-                break
-              fi
-            done
-
-            if (( ! already_exists )); then
-              calypso_names+=("$saved_name")
-              calypso_paths+=("$saved_path")
-            fi
-          done < "$PILAR_PROJECTS_FILE"
-        fi
-
-        # Build the numbered menu.
-        local i
-        for (( i = 1; i <= ${#calypso_names[@]}; i++ )); do
-          calypso_options+=(
-            "$i) ${calypso_names[$i]} (${calypso_paths[$i]})"
-          )
-        done
-
-        if _exists fzf; then
-          sub_choice="$(
-            printf "%s\n" "${calypso_options[@]}" |
-              _pick_with_fzf_or_fallback "Calypso>"
-          )"
-
-          sub_choice="${sub_choice%%)*}"
-        else
-          echo ""
-          echo "Calypso Projects:"
-
-          printf "  %s\n" "${calypso_options[@]}"
-
-          echo ""
-          read "sub_choice?Choose [1-${#calypso_names[@]}] (Enter = 1): "
-          sub_choice="${sub_choice:-1}"
-        fi
-
-        if [[ "$sub_choice" == <-> ]] &&
-           (( sub_choice >= 1 && sub_choice <= ${#calypso_paths[@]} )); then
-          _cd_or_warn "${calypso_paths[$sub_choice]}" && _after_cd
-        else
-          _cd_or_warn "$CATE_DIR" && _after_cd
-        fi
+        _open_pilar_project_group \
+          "Calypso Projects" \
+          "Calypso"
         ;;
 
       4)
-        local sub_choice=""
-        if _exists fzf; then
-          sub_choice="$(printf "%s\n" \
-            "1) AndroidProjects ($RAP_ANDROID_DIR)" \
-            "2) R&P root ($RAP_DIR)" \
-            | _pick_with_fzf_or_fallback "R&P>")"
-          sub_choice="${sub_choice%%)*}"
-        else
-          echo ""
-          echo "Robots & Pencils Projects:"
-          echo "  1) AndroidProjects ($RAP_ANDROID_DIR)"
-          echo "  2) R&P root ($RAP_DIR)"
-          echo ""
-          read "sub_choice?Choose [1-2] (Enter = 1): "
-          sub_choice="${sub_choice:-1}"
-        fi
-
-        case "$sub_choice" in
-          1) _cd_or_warn "$RAP_ANDROID_DIR" && _after_cd ;;
-          2) _cd_or_warn "$RAP_DIR" && _after_cd ;;
-          *) _cd_or_warn "$RAP_ANDROID_DIR" && _after_cd ;;
-        esac
-        ;;
-
-      *)
-        _cd_or_warn "$HOME_DIR" && _after_cd
+        _open_pilar_project_group \
+          "Robots & Pencils Projects" \
+          "R&P"
         ;;
     esac
   }

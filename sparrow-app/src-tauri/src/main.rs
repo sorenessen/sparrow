@@ -302,6 +302,45 @@ fn get_workspace_status() -> Result<WorkspaceStatus, String> {
     })
 }
 
+#[derive(Serialize)]
+struct DetectedWorkspace {
+    path: String,
+    has_sparrow_toml: bool,
+}
+
+#[tauri::command]
+fn get_current_pilar_project() -> Result<Option<DetectedWorkspace>, String> {
+    let home =
+        std::env::var("HOME")
+            .map_err(|_| "HOME environment variable not found".to_string())?;
+
+    let path = PathBuf::from(home)
+        .join(".config")
+        .join("sparrow")
+        .join("current-project");
+
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let value =
+        std::fs::read_to_string(path)
+            .map_err(|e| e.to_string())?;
+
+    let trimmed = value.trim();
+
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let project_path = PathBuf::from(trimmed);
+
+    Ok(Some(DetectedWorkspace {
+        path: trimmed.to_string(),
+        has_sparrow_toml: project_path.join("sparrow.toml").exists(),
+    }))
+}
+
 #[tauri::command]
 fn run_task(task: String) -> Result<(), String> {
     let cfg = load_sparrow_toml()?;
@@ -342,6 +381,15 @@ fn run_task(task: String) -> Result<(), String> {
             }
         }
     }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn clear_workspace() -> Result<(), String> {
+    *workspace_root()
+        .lock()
+        .map_err(|_| "Workspace lock poisoned".to_string())? = None;
 
     Ok(())
 }
@@ -524,7 +572,9 @@ fn main() {
             run_task,
             set_workspace,
             add_pilar_project,
-            remove_pilar_project
+            remove_pilar_project,
+            get_current_pilar_project,
+            clear_workspace
 
         ])
         .run(tauri::generate_context!())

@@ -10,6 +10,11 @@ type WorkspaceStatus = {
   toml_path: string;
 };
 
+type DetectedWorkspace = {
+  path: string;
+  has_sparrow_toml: boolean;
+};
+
 const el = document.getElementById("terminal");
 if (!el) throw new Error("Missing #terminal");
 
@@ -135,6 +140,10 @@ invoke("spawn_shell")
 
     // 🔥 THIS LINE BRINGS YOUR MENU BACK
     await invoke("pty_write", { data: "pilar\n" });
+    window.setTimeout(() => {
+      void refreshDetectedWorkspace();
+    }, 500);
+
   })
   .catch(console.error);
 
@@ -179,6 +188,27 @@ async function setWorkspace(path: string) {
   }
 }
 
+function wireDetectedWorkspace() {
+  const mountBtn =
+    document.getElementById(
+      "btnMountDetectedWorkspace"
+    ) as HTMLButtonElement | null;
+
+  mountBtn?.addEventListener(
+    "click",
+    async () => {
+      const path =
+        mountBtn.dataset.path;
+
+      if (!path) {
+        return;
+      }
+
+      await setWorkspace(path);
+    }
+  );
+}
+
 function wireWorkspaceInput() {
   const input = document.getElementById("workspacePath") as HTMLInputElement | null;
   if (!input) return;
@@ -193,6 +223,80 @@ function wireWorkspaceInput() {
   input.addEventListener("blur", () => {
     void setWorkspace(input.value);
   });
+}
+
+async function refreshDetectedWorkspace() {
+  const detectedEl =
+    document.getElementById("detectedWorkspace");
+
+  const mountBtn =
+    document.getElementById(
+      "btnMountDetectedWorkspace"
+    ) as HTMLButtonElement | null;
+
+  try {
+    const detected =
+      await invoke<DetectedWorkspace | null>(
+        "get_current_pilar_project"
+      );
+
+    if (!detected) {
+      if (detectedEl) {
+        detectedEl.textContent = "";
+      }
+
+      if (mountBtn) {
+        mountBtn.style.display = "none";
+        delete mountBtn.dataset.path;
+      }
+
+      return;
+    }
+
+    if (detected.path !== lastDetectedProject) {
+      lastDetectedProject = detected.path;
+
+      await invoke("clear_workspace");
+
+      const tasksEl =
+        document.getElementById("tasks");
+
+      if (tasksEl) {
+        tasksEl.innerHTML = "";
+      }
+    }
+
+    if (detected.has_sparrow_toml) {
+      if (detectedEl) {
+        detectedEl.textContent =
+          `Sparrow workspace detected: ${detected.path}`;
+      }
+
+      if (mountBtn) {
+        mountBtn.style.display = "block";
+        mountBtn.dataset.path = detected.path;
+      }
+    } else {
+      if (detectedEl) {
+        detectedEl.textContent =
+          `No Sparrow workspace configured for ${detected.path}`;
+      }
+
+      if (mountBtn) {
+        mountBtn.style.display = "none";
+        delete mountBtn.dataset.path;
+      }
+
+      const tasksEl =
+        document.getElementById("tasks");
+
+      if (tasksEl) {
+        tasksEl.innerHTML = "";
+      }
+    }
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 function wireWorkspaceControls() {
@@ -236,7 +340,9 @@ function wirePilarControls() {
     document.getElementById("btnRemoveFromPilar");
 
   addBtn?.addEventListener("click", async () => {
-    const path = pathEl?.value.trim();
+    const path =
+      lastDetectedProject ??
+      pathEl?.value.trim();
 
     if (!path) {
       return;
@@ -262,7 +368,9 @@ function wirePilarControls() {
   });
 
   removeBtn?.addEventListener("click", async () => {
-    const path = pathEl?.value.trim();
+    const path =
+      lastDetectedProject ??
+      pathEl?.value.trim();
 
     if (!path) {
       return;
@@ -275,6 +383,8 @@ function wirePilarControls() {
     showPilarStatus("Removed from Pilar");
   });
 }
+
+let lastDetectedProject: string | null = null;
 
 let pilarStatusTimer: number | null = null;
 
@@ -316,3 +426,9 @@ wireWorkspaceInput();
 wirePilarControls();
 wirePilarNavigation();
 wireTerminalControls();
+wireDetectedWorkspace();
+
+window.setInterval(() => {
+  void refreshDetectedWorkspace();
+}, 1000);
+
